@@ -85,11 +85,12 @@ To compile firmware from source, refer to the [developer guide](developer-guide)
 ### Troubleshooting
 
 * __Windows__: During the update, a new device called "STM32 BOOTLOADER" will appear. Open the [Zadig utility](http://zadig.akeo.ie/) and set the driver for "STM32 BOOTLOADER" to libusb-win32. After that the firmware update will continue.
+* __Linux__: Try running `sudo odrivetool dfu` instead of `odrivetool dfu`.
 * On some machines you will need to unplug and plug back in the USB cable to make the PC understand that we switched from regular mode to bootloader mode.
 * If the DFU script can't find the device, try forcing it into DFU mode.
 
-  <details><summary markdown="span">How to force DFU mode (ODrive v3.5)</summary><div markdown="block">
-  Flick the DIP switch that "DFU, RUN" to "DFU" and power cycle the board. After you're done upgrading firmware, don't forget to put the switch back into the "RUN" position and power cycle the board again.
+  <details><summary markdown="span">How to force DFU mode (ODrive v3.5 and newer)</summary><div markdown="block">
+  Flick the DIP switch that says "DFU, RUN" to "DFU" and power cycle the board. If that alone doesn't work, also connect the pin "GPIO6" to "GND". After you're done upgrading firmware, don't forget to put the switch back into the "RUN" position and power cycle the board again.
   </div></details>
 
   <details><summary markdown="span">How to force DFU mode (ODrive v3.1, v3.2)</summary><div markdown="block">
@@ -97,11 +98,27 @@ To compile firmware from source, refer to the [developer guide](developer-guide)
   </div></details>
 
 ### Upgrading firmware with a different DFU tool
-Some people have had issues using the python dfu tool, so below is a guide on how to manually use a different tool.
+Some people have had issues using the python dfu tool, so below is a guide on how to manually use different tools.
 
-Before starting the below steps, you need to get firmware binary. You can download one of the officially released firmware files from [here](https://github.com/madcowswe/ODrive/releases). Make sure you select the file that matches your board version, and that you get the __.hex__ file (not the __.elf__ file).
+Before starting the below steps, you need to get firmware binary. You can download one of the officially released firmware files from [here](https://github.com/madcowswe/ODrive/releases/latest). Make sure you select the file that matches your board version. On Windows you will need one of the __.hex__ files, and for Linux and Mac you will want the __.elf__ file.
 
 To compile firmware from source, refer to the [developer guide](developer-guide).
+
+#### Multi-platform
+ST has a tool called STM32CubeProgrammer.
+
+1. Download the tool [here](https://www.st.com/en/development-tools/stm32cubeprog.html). You will need to make an account with ST to download the tool.
+1. Install the tool. On Windows, make sure to let it make a desktop shortcut.
+1. Force the ODrive into DFU mode, as per the instructions above titled "How to force DFU mode".
+1. Launch the tool.
+1. Under "Memory & File edition", there are two tabs called "Device memory" and "Open file". Click "Open file" and choose the ODrive firmware hex file that you downloaded or compiled.
+1. In the top right, there is a dropdown menu containing the different methods to connect to an STM32 device. Choose "USB".
+1. Under "USB configuration", a USB port should be automatically selected and the ODrive serial number should be present next to "Serial number."
+1. Click "Connect" above "USB configuration".
+1. Click the tab with the name of your firmware file (example: ODriveFirmware_v3.6-56V.hex) if it is not already selected.
+1. Click "Download" to flash your ODrive with the firmware. Your ODrive is now flashed!
+1. Close STM32CubeProgrammer.
+1. Turn off the power to the ODrive and set the DIP swtich back to RUN mode.
 
 #### Windows
 You can use the DfuSe app from ST.
@@ -141,7 +158,7 @@ sudo dfu-util -a 0 -s 0x08000000 -D build/ODriveFirmware.bin
 First, you need to install the arm development tools to copy the binary into the appropriate format.
 
 ```text
-$ brew cask install gcc-arm-embedded
+$ brew install --cask gcc-arm-embedded
 ```
 
 Then convert the binary to .bin format
@@ -156,6 +173,7 @@ Install `dfu-util`:
 $ sudo port install dfu-util   # via MacPorts; for HomeBrew use "brew install dfu-util"
 ```
 
+Put the ODrive into DFU mode using the DIP switch, then turn it on and plug in the USB.
 Find the correct device serial number to use:
 
 ```text
@@ -211,13 +229,13 @@ To change what parameters are plotted open odrivetool (located in Anaconda3\Scri
             my_odrive.axis1.encoder.pos_estimate,
         ])
 ```
-For example, to plot the approximate motor torque [N.cm] and the velocity [RPM] of axis1 with a 150KV motor and an 8192 count per rotation econder you would modify the function to read:
+For example, to plot the approximate motor torque [Nm] and the velocity [RPM] of axis0, you would modify the function to read:
 ```
         # If you want to plot different values, change them here.
         # You can plot any number of values concurrently.
         cancellation_token = start_liveplotter(lambda: [
-            (((my_odrive.axis0.encoder.pll_vel)/8192)*60), # 8192 CPR encoder
-            ((8.27*my_odrive.axis0.motor.current_control.Iq_setpoint/150) * 100), # Torque [N.cm] = (8.27 * Current [A] / KV) * 100
+            ((my_odrive.axis0.encoder.vel_estimate*60), # turns/s to rpm
+            ((my_odrive.axis0.motor.current_control.Iq_setpoint * my_odrive.axis0.motor.config.torque_constant), # Torque [Nm]
         ])
 ```
 In the example below the motor is forced off axis by hand and held there. In response the motor controller increases the torque (orange line) to counteract this disturbance up to a peak of 500 N.cm at which point the motor current limit is reached. When the motor is released it returns back to its commanded position very quickly as can be seen by the spike in the motor velocity (blue line).
